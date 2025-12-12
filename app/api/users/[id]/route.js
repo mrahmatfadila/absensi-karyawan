@@ -1,128 +1,189 @@
+// app/api/users/[id]/route.js
 import { query } from '@/lib/db';
+import { hashPassword } from '@/lib/auth';
 
+// GET - Fetch single user
 export async function GET(request, { params }) {
   try {
-    const { id } = await params; // Tambahkan await
-    
-    console.log('Fetching user ID:', id);
-    
-    // Query untuk mengambil data user
+    const { id } = params;
+
     const users = await query({
       query: `
         SELECT 
-          u.id, 
-          u.employee_id, 
-          u.name, 
-          u.email, 
-          u.position, 
-          u.hire_date, 
-          d.name as department, 
+          u.id,
+          u.employee_id,
+          u.name,
+          u.email,
+          u.position,
+          u.hire_date,
+          u.created_at,
+          u.role_id,
           r.name as role,
-          DATE_FORMAT(u.created_at, '%d %b %Y') as join_date
+          d.name as department,
+          d.id as department_id
         FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
         LEFT JOIN departments d ON u.department_id = d.id
-        JOIN roles r ON u.role_id = r.id
-        WHERE u.id = ?
+        WHERE u.id = $1
       `,
       values: [id],
     });
 
-    console.log('Query result:', users);
-
     if (users.length === 0) {
-      console.log('User not found with ID:', id);
       return Response.json(
-        { error: 'User not found' },
+        { error: 'Pengguna tidak ditemukan' },
         { status: 404 }
       );
     }
 
     return Response.json(users[0]);
+
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('Error fetching user:', error);
     return Response.json(
-      { error: 'Failed to fetch user: ' + error.message },
+      { error: 'Gagal mengambil data pengguna' },
       { status: 500 }
     );
   }
 }
 
+// PUT - Update user
 export async function PUT(request, { params }) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const body = await request.json();
-    const { name, email, position, department_id, role_id, hire_date, password } = body;
     
-    console.log('Updating user ID:', id, 'with data:', body);
+    const { 
+      employee_id, 
+      name, 
+      email, 
+      password,
+      role_id, 
+      department_id, 
+      position, 
+      hire_date 
+    } = body;
 
     // Build dynamic update query
-    const updates = [];
-    const values = [];
+    let updateFields = [];
+    let values = [];
+    let paramCounter = 1;
 
+    if (employee_id !== undefined) {
+      updateFields.push(`employee_id = $${paramCounter++}`);
+      values.push(employee_id);
+    }
+    
     if (name !== undefined) {
-      updates.push('name = ?');
+      updateFields.push(`name = $${paramCounter++}`);
       values.push(name);
     }
     
-    if (role_id !== undefined) {
-      updates.push('role_id = ?');
-      values.push(role_id);
-    }
-
     if (email !== undefined) {
-      updates.push('email = ?');
+      updateFields.push(`email = $${paramCounter++}`);
       values.push(email);
     }
     
-    if (position !== undefined) {
-      updates.push('position = ?');
-      values.push(position);
-    }
-    
-    if (department_id !== undefined) {
-      updates.push('department_id = ?');
-      values.push(department_id || null);
+    if (password) {
+      const hashedPassword = await hashPassword(password);
+      updateFields.push(`password = $${paramCounter++}`);
+      values.push(hashedPassword);
     }
     
     if (role_id !== undefined) {
-      updates.push('role_id = ?');
+      updateFields.push(`role_id = $${paramCounter++}`);
       values.push(role_id);
     }
     
-    if (hire_date !== undefined) {
-      updates.push('hire_date = ?');
-      values.push(hire_date);
+    if (department_id !== undefined) {
+      updateFields.push(`department_id = $${paramCounter++}`);
+      values.push(department_id || null);
     }
     
-    if (password) {
-      const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updates.push('password = ?');
-      values.push(hashedPassword);
+    if (position !== undefined) {
+      updateFields.push(`position = $${paramCounter++}`);
+      values.push(position || null);
+    }
+    
+    if (hire_date !== undefined) {
+      updateFields.push(`hire_date = $${paramCounter++}`);
+      values.push(hire_date || null);
     }
 
-    if (updates.length === 0) {
+    // Always update updated_at
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    if (updateFields.length === 1) { // Only updated_at
       return Response.json(
-        { error: 'No data to update' },
+        { error: 'Tidak ada data yang diupdate' },
         { status: 400 }
       );
     }
 
+    // Add id as last parameter
     values.push(id);
 
+    const updateQuery = `
+      UPDATE users 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCounter}
+      RETURNING *
+    `;
+
+    const result = await query({
+      query: updateQuery,
+      values: values,
+    });
+
+    if (result.length === 0) {
+      return Response.json(
+        { error: 'Pengguna tidak ditemukan' },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({
+      message: 'Data pengguna berhasil diperbarui',
+      success: true,
+      user: result[0]
+    });
+
+  } catch (error) {
+    console.error('Error updating user:', error);
+    
+    if (error.code === '23505') {
+      return Response.json(
+        { error: 'Email atau ID Karyawan sudah digunakan' },
+        { status: 400 }
+      );
+    }
+    
+    return Response.json(
+      { error: 'Gagal memperbarui data pengguna' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete user
+export async function DELETE(request, { params }) {
+  try {
+    const { id } = params;
+
     await query({
-      query: `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
-      values,
+      query: 'DELETE FROM users WHERE id = $1',
+      values: [id],
     });
 
     return Response.json({
-      success: true,
-      message: 'User updated successfully'
+      message: 'Pengguna berhasil dihapus',
+      success: true
     });
+
   } catch (error) {
-    console.error('Update user error:', error);
+    console.error('Error deleting user:', error);
     return Response.json(
-      { error: 'Failed to update user: ' + error.message },
+      { error: 'Gagal menghapus pengguna' },
       { status: 500 }
     );
   }

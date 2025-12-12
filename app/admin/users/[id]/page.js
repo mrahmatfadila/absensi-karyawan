@@ -7,13 +7,11 @@ import {
   FiMail, 
   FiBriefcase, 
   FiCalendar, 
-  FiClock,
   FiEdit, 
   FiArrowLeft,
   FiBarChart2,
   FiCheckCircle,
   FiAlertCircle,
-  FiHash
 } from 'react-icons/fi';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -32,64 +30,28 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingRole, setEditingRole] = useState(null);
+  const [savingRole, setSavingRole] = useState(false);
   
   const router = useRouter();
   const params = useParams();
   const userId = params?.id;
 
-  // Handle role change
-  const handleRoleChange = (newRoleId) => {
-    setEditingRole(newRoleId);
-  };
-
-  // Save role changes
-  const handleRoleSave = async () => {
-    if (!editingRole || editingRole === (user.role_id || (user.role === 'admin' ? '1' : user.role === 'manager' ? '2' : '3'))) {
-      toast.info('Tidak ada perubahan role');
-      return;
-    }
-
-    if (!confirm(`Apakah Anda yakin ingin mengubah role ${user.name}?`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/users/${userId}/role`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role_id: parseInt(editingRole) }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Role berhasil diubah');
-        fetchUserData(); // Refresh data
-        setEditingRole(null);
-      } else {
-        toast.error(data.error || 'Gagal mengubah role');
-      }
-    } catch (error) {
-      toast.error('Terjadi kesalahan');
-    }
-  };
-
-  // Get role select color
-  const getRoleSelectColor = (role) => {
+  // Convert role string to role_id
+  const getRoleId = (role) => {
+    if (typeof role === 'number') return role;
     switch (role) {
-      case 'admin': return 'text-red-700';
-      case 'manager': return 'text-blue-700';
-      case 'employee': return 'text-green-700';
-      default: return 'text-gray-700';
+      case 'admin': return 1;
+      case 'manager': return 2;
+      case 'employee': return 3;
+      default: return 3;
     }
   };
 
   // Set editing role when user data loads
   useEffect(() => {
     if (user) {
-      setEditingRole(user.role_id || (user.role === 'admin' ? '1' : user.role === 'manager' ? '2' : '3'));
+      const currentRoleId = user.role_id || getRoleId(user.role);
+      setEditingRole(currentRoleId.toString());
     }
   }, [user]);
 
@@ -152,6 +114,51 @@ export default function UserDetailPage() {
     }
   };
 
+  // Handle role change
+  const handleRoleChange = (newRoleId) => {
+    setEditingRole(newRoleId);
+  };
+
+  // Save role changes
+  const handleRoleSave = async () => {
+    const currentRoleId = user.role_id || getRoleId(user.role);
+    
+    if (!editingRole || editingRole === currentRoleId.toString()) {
+      toast.info('Tidak ada perubahan role');
+      return;
+    }
+
+    if (!confirm(`Apakah Anda yakin ingin mengubah role ${user.name}?`)) {
+      return;
+    }
+
+    setSavingRole(true);
+
+    try {
+      const response = await fetch(`/api/users/${userId}/role`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role_id: parseInt(editingRole) }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Role berhasil diubah');
+        await fetchUserData(); // Refresh data
+      } else {
+        toast.error(data.error || 'Gagal mengubah role');
+      }
+    } catch (error) {
+      console.error('Error saving role:', error);
+      toast.error('Terjadi kesalahan saat menyimpan role');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
   const handleEdit = () => {
     router.push(`/admin/users/${userId}/edit`);
   };
@@ -184,6 +191,15 @@ export default function UserDetailPage() {
       case 'manager': return 'bg-blue-100 text-blue-800';
       case 'employee': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleSelectColor = (roleId) => {
+    switch (roleId) {
+      case '1': return 'border-red-300 bg-red-50 text-red-700';
+      case '2': return 'border-blue-300 bg-blue-50 text-blue-700';
+      case '3': return 'border-green-300 bg-green-50 text-green-700';
+      default: return 'border-gray-300 bg-gray-50 text-gray-700';
     }
   };
 
@@ -228,16 +244,6 @@ export default function UserDetailPage() {
             >
               Coba Lagi
             </button>
-          </div>
-          
-          <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
-            <p className="font-medium text-yellow-800 mb-2">Troubleshooting:</p>
-            <ol className="list-decimal pl-5 space-y-1 text-sm text-yellow-700">
-              <li>Pastikan user dengan ID {userId} ada di database</li>
-              <li>Check console browser (F12) untuk detail error</li>
-              <li>Pastikan API endpoint /api/users/{userId} berjalan</li>
-              <li>Check koneksi database MySQL</li>
-            </ol>
           </div>
         </div>
       </div>
@@ -336,19 +342,16 @@ export default function UserDetailPage() {
                   )}
 
                   {/* Role Editor */}
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Role Pengguna
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Ubah Role Pengguna
                     </label>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
                       <select
-                        value={editingRole || (user.role_id || (user.role === 'admin' ? '1' : user.role === 'manager' ? '2' : '3'))}
+                        value={editingRole || '3'}
                         onChange={(e) => handleRoleChange(e.target.value)}
-                        className={`px-4 py-2 rounded-lg border ${
-                          user.role === 'admin' ? 'border-red-300 bg-red-50' :
-                          user.role === 'manager' ? 'border-blue-300 bg-blue-50' :
-                          'border-green-300 bg-green-50'
-                        } ${getRoleSelectColor(user.role)} font-medium`}
+                        disabled={savingRole}
+                        className={`flex-1 px-4 py-2 rounded-lg border font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${getRoleSelectColor(editingRole)} disabled:opacity-50`}
                       >
                         <option value="1">Administrator</option>
                         <option value="2">Manager</option>
@@ -357,11 +360,15 @@ export default function UserDetailPage() {
                       
                       <button
                         onClick={handleRoleSave}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        disabled={savingRole}
+                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                       >
-                        Simpan Role
+                        {savingRole ? 'Menyimpan...' : 'Simpan Role'}
                       </button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Perubahan role akan langsung diterapkan setelah disimpan
+                    </p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">

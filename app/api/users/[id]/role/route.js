@@ -1,53 +1,80 @@
+// app/api/users/[id]/role/route.js
 import { query } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 
 export async function PUT(request, { params }) {
   try {
-    const adminCheck = await requireAdmin();
-    if (adminCheck.error) {
-      return Response.json(
-        { error: adminCheck.error },
-        { status: adminCheck.status }
-      );
-    }
-
-    const adminUser = adminCheck.user;
-    const { id } = await params;
+    const { id } = params;
     const { role_id } = await request.json();
 
-    console.log(`Admin ${adminUser.id} changing role for user ${id} to ${role_id}`);
-
-    // Validasi role_id
-    if (![1, 2, 3].includes(role_id)) {
+    // Validasi input
+    if (!role_id) {
       return Response.json(
-        { error: 'Invalid role ID. Must be 1 (admin), 2 (manager), or 3 (employee).' },
+        { error: 'Role ID diperlukan' },
         { status: 400 }
       );
     }
 
-    // Cek jika user mencoba mengubah role dirinya sendiri
-    if (parseInt(id) === adminUser.id) {
+    // Validasi role_id harus 1, 2, atau 3
+    const validRoleIds = [1, 2, 3];
+    if (!validRoleIds.includes(parseInt(role_id))) {
       return Response.json(
-        { error: 'You cannot change your own role.' },
+        { error: 'Role ID tidak valid. Harus 1 (admin), 2 (manager), atau 3 (employee)' },
         { status: 400 }
       );
     }
 
-    // Update role
-    await query({
-      query: 'UPDATE users SET role_id = ?, updated_at = NOW() WHERE id = ?',
-      values: [role_id, id],
+    // Update role user
+    const result = await query({
+      query: `
+        UPDATE users 
+        SET role_id = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING id, employee_id, name, email, role_id
+      `,
+      values: [parseInt(role_id), id],
     });
+
+    if (result.length === 0) {
+      return Response.json(
+        { error: 'Pengguna tidak ditemukan' },
+        { status: 404 }
+      );
+    }
+
+    const updatedUser = result[0];
+
+    // Get role name
+    const roleNames = {
+      1: 'admin',
+      2: 'manager',
+      3: 'employee'
+    };
 
     return Response.json({
+      message: 'Role berhasil diubah',
       success: true,
-      message: 'User role updated successfully',
-      new_role_id: role_id
+      user: {
+        ...updatedUser,
+        role: roleNames[updatedUser.role_id]
+      }
     });
+
   } catch (error) {
-    console.error('Update role error:', error);
+    console.error('Error updating role:', error);
+    
+    // Handle foreign key constraint error
+    if (error.code === '23503') {
+      return Response.json(
+        { error: 'Role ID tidak valid dalam database' },
+        { status: 400 }
+      );
+    }
+
     return Response.json(
-      { error: 'Failed to update user role: ' + error.message },
+      { 
+        error: 'Gagal mengubah role',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }
