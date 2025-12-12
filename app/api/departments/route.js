@@ -42,7 +42,7 @@ export async function POST(request) {
     const { name, description } = await request.json();
 
     const result = await query({
-      query: 'INSERT INTO departments (name, description) VALUES (?, ?)',
+      query: 'INSERT INTO departments (name, description) VALUES ($1, $2)',
       values: [name, description],
     });
 

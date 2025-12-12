@@ -15,7 +15,7 @@ export async function POST(request) {
 
     // Cek apakah email sudah terdaftar
     const existingUser = await query({
-      query: 'SELECT id FROM users WHERE email = ?',
+      query: 'SELECT id FROM users WHERE email = $1',
       values: [email],
     });
 
@@ -28,7 +28,7 @@ export async function POST(request) {
 
     // Cek apakah employee_id sudah ada
     const existingEmployee = await query({
-      query: 'SELECT id FROM users WHERE employee_id = ?',
+      query: 'SELECT id FROM users WHERE employee_id = $1',
       values: [employee_id],
     });
 
@@ -44,12 +44,9 @@ export async function POST(request) {
 
     // Default role: employee (role_id = 3)
     const result = await query({
-      query: `
-        INSERT INTO users 
-        (employee_id, name, email, password, role_id, department_id, position, hire_date)
-        VALUES (?, ?, ?, ?, 3, ?, ?, CURDATE())
-      `,
-      values: [employee_id, name, email, hashedPassword, department_id, position],
+      query: `INSERT INTO users (employee_id, name, email, password, role_id, department_id, position, hire_date) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      values: [employee_id, name, email, hashedPassword, role_id, department_id, position, hire_date]
     });
 
     return Response.json({

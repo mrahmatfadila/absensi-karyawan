@@ -12,7 +12,7 @@ export async function POST(request) {
         SELECT u.*, r.name as role_name 
         FROM users u 
         JOIN roles r ON u.role_id = r.id 
-        WHERE u.email = ?
+        WHERE u.email = $1
       `,
       values: [email],
     });
