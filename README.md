@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Sistem Absensi Karyawan
 
-## Getting Started
+Sistem absensi karyawan modern yang dibangun dengan Next.js 14, MySQL, dan Tailwind CSS.
 
-First, run the development server:
+## Fitur Utama
 
+- ✅ **3 Role Pengguna**: Admin, Manager, Employee
+- ✅ **CRUD Lengkap**: Manajemen Pengguna, Absensi, Departemen
+- ✅ **Autentikasi**: Login, Register, Logout dengan JWT
+- ✅ **Dashboard Interaktif**: Chart.js untuk visualisasi data
+- ✅ **Responsive Design**: Mobile-friendly dengan Tailwind CSS
+- ✅ **Real-time Features**: Check-in/Check-out langsung
+
+## Teknologi
+
+- **Frontend**: Next.js 14 (App Router), React, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: MySQL (XAMPP)
+- **Authentication**: JWT, bcryptjs
+- **Charts**: Chart.js, react-chartjs-2
+- **Icons**: React Icons
+- **Notifications**: React Hot Toast
+
+## Instalasi
+
+### 1. Prasyarat
+- Node.js 18+ dan npm
+- XAMPP (untuk MySQL)
+- Visual Studio Code
+
+### 2. Setup Database
+1. Jalankan XAMPP Control Panel
+2. Start Apache dan MySQL
+3. Buka phpMyAdmin (http://localhost/phpmyadmin)
+4. Import file `setup-database.sql`
+
+### 3. Setup Aplikasi
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+# Clone atau buat project
+npx create-next-app@latest absensi-karyawan
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# Masuk ke folder project
+cd absensi-karyawan
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+# Install dependencies
+npm install mysql2 bcryptjs jsonwebtoken cookie react-hot-toast date-fns react-icons chart.js react-chartjs-2
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Buat file .env.local
+cp .env.example .env.local
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Edit .env.local dengan konfigurasi database Anda
