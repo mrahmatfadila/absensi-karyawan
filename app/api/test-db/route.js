@@ -2,13 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    console.log('=== TESTING DATABASE CONNECTION ===');
     
     // Cek environment variables
-    console.log('ENV CHECK:');
-    console.log('- DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('- DATABASE_URL preview:', process.env.DATABASE_URL ? 
-      `${process.env.DATABASE_URL.substring(0, 30)}...` : 'NOT SET');
     
     // Coba koneksi ke PostgreSQL
     const { Pool } = await import('pg');
@@ -37,7 +32,7 @@ export async function GET() {
       connectionInfo = { error: 'Invalid DATABASE_URL format' };
     }
 
-    console.log('Connection info:', connectionInfo);
+    
 
     // Buat pool dengan SSL config untuk NeonDB
     const pool = new Pool({
@@ -69,7 +64,6 @@ export async function GET() {
       `);
       attendanceColumns = colsQuery.rows;
     } catch (e) {
-      console.log('Attendance table might not exist:', e.message);
     }
 
     await pool.end();

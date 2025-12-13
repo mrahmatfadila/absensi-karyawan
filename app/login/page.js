@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Tambahkan useEffect
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiMail, FiLock, FiUser, FiEye, FiEyeOff } from 'react-icons/fi';
@@ -15,6 +15,34 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // Cek jika user sudah login
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      
+      if (token && userData) {
+        try {
+          const user = JSON.parse(userData);
+          const role = user.role || user.role_name;
+          
+          // Redirect berdasarkan role
+          if (role === 'admin') {
+            router.push('/');
+          } else if (role === 'employee' || role === 'manager') {
+            router.push('/attendance/absensi');
+          }
+        } catch (error) {
+          // Jika ada error, hapus data dan biarkan user login ulang
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -23,14 +51,13 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e) => {
-    // PENTING: Prevent default form submission!
     e.preventDefault();
     e.stopPropagation();
     
     setLoading(true);
 
     try {
-      console.log('Submitting login...', { email: formData.email });
+      
       
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -38,13 +65,11 @@ export default function LoginPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
-        credentials: 'include',
+        credentials: 'include', // Penting untuk cookie-based auth
       });
 
-      console.log('Response status:', response.status);
       
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (response.ok && data.success) {
         toast.success('Login berhasil!');
@@ -57,19 +82,22 @@ export default function LoginPage() {
           localStorage.setItem('token', data.token);
         }
         
+        // Wait a moment for state to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Redirect berdasarkan role
         const role = data.user?.role || data.user?.role_name;
-        console.log('User role:', role);
         
-        setTimeout(() => {
-          if (role === 'admin') {
-            router.push('/admin');
-          } else if (role === 'manager') {
-            router.push('/manager');
-          } else {
-            router.push('/dashboard');
-          }
-        }, 500);
+        if (role === 'admin') {
+          window.location.href = '/'; // Gunakan window.location untuk full refresh
+        } else if (role === 'employee') {
+          window.location.href = '/attendance/absensi';
+        } else if (role === 'manager') {
+          // Fallback
+          window.location.href = '/manager';
+        } else {
+          window.location.href = '/';
+        }
       } else {
         toast.error(data.error || 'Login gagal. Periksa email dan password Anda.');
       }
@@ -80,6 +108,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // ... (rest of the code remains the same)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -200,8 +230,9 @@ export default function LoginPage() {
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Demo login:<br />
-                <span className="font-medium">Admin:</span> admin@company.com / admin123<br />
-                <span className="font-medium">Employee:</span> user@company.com / user123
+                <span className="font-medium">Admin:</span> rahmatfadila717@gmail.com / 123456789<br />
+                <span className="font-medium">Employee:</span> melna@gmail.com / 123456789<br />
+                <span className="font-medium">Manager:</span> raihan@gmail.com / 123456789
               </p>
             </div>
           </form>

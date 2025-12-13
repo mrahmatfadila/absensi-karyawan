@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request) {
-  console.log('🔍 CHECK-IN API CALLED');
   
   try {
     const { Pool } = await import('pg');
@@ -20,7 +19,7 @@ export async function POST(request) {
     const body = await request.json();
     const { user_id, location } = body;
     
-    console.log('Request data:', { user_id, location });
+    
 
     if (!user_id) {
       await pool.end();
@@ -46,7 +45,7 @@ export async function POST(request) {
     `;
     
     const checkResult = await pool.query(checkQuery, [userIdNum, todayStart, todayEnd]);
-    console.log('Existing records:', checkResult.rows.length);
+    
 
     if (checkResult.rows.length > 0) {
       await pool.end();
@@ -63,9 +62,7 @@ export async function POST(request) {
     
     if (checkInTime > lateThreshold) {
       status = 'late';
-      console.log('Status: LATE');
     } else {
-      console.log('Status: PRESENT');
     }
 
     // Insert attendance record - versi aman
@@ -88,13 +85,12 @@ export async function POST(request) {
       ? [userIdNum, now, status, location]
       : [userIdNum, now, status];
     
-    console.log('Insert query:', insertQuery);
-    console.log('Insert params:', params);
+    
     
     const result = await pool.query(insertQuery, params);
     await pool.end();
     
-    console.log('Insert successful:', result.rows[0]);
+    
 
     return NextResponse.json({
       success: true,

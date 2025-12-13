@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
-  console.log('🔍 TODAY API CALLED');
+  
   
   try {
     const { Pool } = await import('pg');
@@ -54,12 +54,10 @@ export async function GET(request) {
       LIMIT 1
     `;
     
-    console.log('Executing query with params:', [userIdNum, todayStart, todayEnd]);
     
     const result = await pool.query(query, [userIdNum, todayStart, todayEnd]);
     await pool.end();
     
-    console.log('Query result count:', result.rows.length);
     
     if (result.rows.length === 0) {
       return NextResponse.json(null);

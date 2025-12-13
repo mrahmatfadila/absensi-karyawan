@@ -86,13 +86,8 @@ export default function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    try {
-      console.log('🔄 Fetching dashboard data from /api/admin/stats');
-      
-      const response = await fetch('/api/admin/stats');
-      
-      console.log('Response status:', response.status);
-      
+    try {  
+      const response = await fetch('/api/admin/stats');     
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error response:', errorText);
@@ -110,16 +105,9 @@ export default function AdminDashboard() {
       }
       
       const result = await response.json();
-      console.log('API result:', result);
       
       if (result.success && result.data) {
         const { stats, departmentStats, recentAttendance, weeklyData, monthlyTrend } = result.data;
-        
-        console.log('Setting data:', { 
-          stats, 
-          deptStatsCount: departmentStats.length,
-          recentCount: recentAttendance.length 
-        });
         
         setStats(stats);
         setDepartmentStats(departmentStats);

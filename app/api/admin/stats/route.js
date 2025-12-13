@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  console.log('=== ADMIN STATS API - START ===');
   
   try {
     if (!process.env.DATABASE_URL) {
@@ -39,7 +38,6 @@ export async function GET() {
         WHERE role_id = 3
       `);
       totalEmployees = parseInt(employeesResult.rows[0]?.count || 0);
-      console.log('Total employees:', totalEmployees);
     } catch (e) {
       console.error('Error fetching employees:', e.message);
     }
@@ -48,9 +46,6 @@ export async function GET() {
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    
-    console.log('Today date range:', { todayStart, todayEnd });
-    console.log('Current date:', today);
 
     // 3. Today's attendance - FIX: Gunakan date comparison yang benar
     try {
@@ -66,8 +61,6 @@ export async function GET() {
       presentToday = parseInt(attendanceResult.rows[0]?.present_today || 0);
       lateToday = parseInt(attendanceResult.rows[0]?.late_today || 0);
       totalToday = parseInt(attendanceResult.rows[0]?.total_today || 0);
-      
-      console.log('Today attendance stats:', { presentToday, lateToday, totalToday });
     } catch (e) {
       console.error('Error fetching attendance:', e.message);
     }
@@ -76,7 +69,6 @@ export async function GET() {
     try {
       const deptResult = await pool.query(`SELECT COUNT(*) as count FROM departments`);
       departmentsCount = parseInt(deptResult.rows[0]?.count || 0);
-      console.log('Departments count:', departmentsCount);
     } catch (e) {
       console.error('Error fetching departments:', e.message);
     }
@@ -89,7 +81,6 @@ export async function GET() {
         WHERE status = 'pending'
       `);
       pendingLeaves = parseInt(leaveResult.rows[0]?.count || 0);
-      console.log('Pending leaves:', pendingLeaves);
     } catch (e) {
       console.error('Error fetching leaves:', e.message);
     }
@@ -118,7 +109,6 @@ export async function GET() {
           Math.round((parseInt(row.present_today || 0) / parseInt(row.employee_count)) * 100) : 0
       }));
       
-      console.log('Department stats:', departmentStats);
     } catch (e) {
       console.error('Error fetching department stats:', e.message);
       // Fallback: basic department list
@@ -172,7 +162,7 @@ export async function GET() {
           }) : 'Belum check-out'
       }));
       
-      console.log('Recent attendance count:', recentAttendance.length);
+      
     } catch (e) {
       console.error('Error fetching recent attendance:', e.message);
     }
@@ -220,7 +210,6 @@ export async function GET() {
         }
       });
       
-      console.log('Weekly data (raw counts):', weeklyData);
       
       // Convert counts to percentages
       if (totalEmployees > 0) {
@@ -229,7 +218,7 @@ export async function GET() {
         );
       }
       
-      console.log('Weekly data (percentages):', weeklyData);
+      
     } catch (e) {
       console.error('Error fetching weekly data:', e.message);
       // Default fallback data
@@ -240,7 +229,7 @@ export async function GET() {
 
     // 9. Calculate attendance rate
     const attendanceRate = totalEmployees > 0 ? (presentToday / totalEmployees) * 100 : 0;
-    console.log('Attendance rate:', Math.round(attendanceRate), '%');
+    
 
     // 10. Monthly trend (simplified untuk sekarang)
     const monthlyData = [85, 78, 90, 88, Math.round(attendanceRate), 95];
@@ -248,7 +237,7 @@ export async function GET() {
 
     await pool.end();
 
-    console.log('=== ADMIN STATS API - COMPLETE ===');
+    
 
     return NextResponse.json({
       success: true,

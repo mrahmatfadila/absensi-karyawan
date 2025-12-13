@@ -85,7 +85,6 @@ export default function Home() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Fetching dashboard data...');
       
       // Fetch semua data sekaligus
       const [statsRes, activityRes, weeklyRes] = await Promise.all([
@@ -98,10 +97,6 @@ export default function Home() {
         const statsData = await statsRes.json();
         const activityData = await activityRes.json();
         const weeklyData = await weeklyRes.json();
-        
-        console.log('📊 Stats data:', statsData);
-        console.log('📈 Activity data:', activityData);
-        console.log('📅 Weekly data:', weeklyData);
         
         if (statsData.success) {
           setStats(statsData.data);

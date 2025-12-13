@@ -50,8 +50,7 @@ export default function AbsensiPage() {
 
   const fetchTodayAttendance = async () => {
   try {
-    console.log('🔄 fetchTodayAttendance called');
-    console.log('User:', user);
+    
     
     if (!user || !user.id) {
       console.error('❌ User data not available');
@@ -59,18 +58,12 @@ export default function AbsensiPage() {
       setLoading(false);
       return;
     }
-
-    console.log(`📤 Fetching today attendance for user_id: ${user.id}`);
-    
     const apiUrl = `/api/attendance/today?user_id=${user.id}`;
-    console.log('API URL:', apiUrl);
     
     const response = await fetch(apiUrl);
-    console.log('Response status:', response.status, response.statusText);
     
     // Get response as text first
     const responseText = await response.text();
-    console.log('Raw response:', responseText.substring(0, 500));
     
     if (!response.ok) {
       console.error('❌ API Error:', {
@@ -96,13 +89,11 @@ export default function AbsensiPage() {
     
     // Parse successful response
     if (responseText === 'null' || responseText.trim() === '') {
-      console.log('✅ No attendance data for today');
       setTodayAttendance(null);
       return;
     }
     
     const data = JSON.parse(responseText);
-    console.log('✅ Attendance data received:', data);
     setTodayAttendance(data);
     
   } catch (error) {

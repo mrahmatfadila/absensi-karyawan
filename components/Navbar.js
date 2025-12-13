@@ -12,23 +12,58 @@ export default function Navbar() {
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    const checkAuth = () => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+        }
+      }
+    };
+
+    checkAuth();
+    
+    // Listen for storage changes (for logout from other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' || e.key === 'token') {
+        checkAuth();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout');
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        console.error('Logout API error');
+      }
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      // Always clear local storage and redirect
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      
+      // Force refresh to clear any cached state
+      window.location.href = '/login';
     }
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    router.push('/login');
   };
 
+  // Fungsi untuk mendapatkan menu berdasarkan role user
   const getNavItems = () => {
     if (!user) return [];
     
@@ -75,22 +110,48 @@ export default function Navbar() {
     return items;
   };
 
-  const userItems = getNavItems();
+  // Fungsi untuk menentukan link logo
+  const getLogoLink = () => {
+    if (!user) return '/';
+    
+    switch(user.role) {
+      case 'admin':
+        return '/';
+      case 'manager':
+        return '/';
+      case 'employee':
+        return '/attendance/absensi';
+      default:
+        return '/';
+    }
+  };
 
-  // Fungsi untuk redirect
+  // Perbaikan redirect useEffect
   useEffect(() => {
     if (!user) return;
 
-    // Redirect employee dari dashboard ke absensi
-    if (user.role === 'employee' && pathname === '/') {
-      router.push('/attendance/absensi');
-    }
+    // Prevent infinite redirects
+    const currentPath = pathname;
     
-    // Redirect admin dari halaman absensi ke dashboard
-    if (user.role === 'admin' && pathname === '/attendance/absensi') {
-      router.push('/');
+    // Redirect rules
+    if (user.role === 'employee') {
+      // Employee tidak boleh akses halaman admin
+      if (currentPath === '/' || currentPath.includes('/admin')) {
+        router.push('/attendance/absensi');
+      }
+    } else if (user.role === 'admin') {
+      // Admin tidak boleh akses halaman employee
+      if (currentPath === '/attendance/absensi') {
+        router.push('/');
+      }
+    } else if (user.role === 'manager') {
+      // Manager bisa akses dashboard dan absensi
+      // Tidak ada redirect khusus untuk manager
     }
   }, [user, pathname, router]);
+
+  // Dapatkan menu items
+  const userItems = getNavItems();
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200">
@@ -257,20 +318,4 @@ export default function Navbar() {
       )}
     </nav>
   );
-
-  // Helper function untuk menentukan link logo
-  function getLogoLink() {
-    if (!user) return '/';
-    
-    switch(user.role) {
-      case 'admin':
-        return '/';
-      case 'manager':
-        return '/';
-      case 'employee':
-        return '/attendance/absensi';
-      default:
-        return '/';
-    }
-  }
 }

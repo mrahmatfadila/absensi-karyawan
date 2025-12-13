@@ -70,8 +70,6 @@ export default function UserDetailPage() {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching user data for ID:', userId);
-      
       // Fetch user data
       const userResponse = await fetch(`/api/users/${userId}`);
       
@@ -91,7 +89,6 @@ export default function UserDetailPage() {
           setAttendanceStats(statsData);
         }
       } catch (statsError) {
-        console.log('Stats error, using defaults:', statsError);
       }
       
       // Fetch recent attendance
@@ -102,7 +99,6 @@ export default function UserDetailPage() {
           setRecentAttendance(attendanceData);
         }
       } catch (attError) {
-        console.log('Attendance fetch error:', attError);
       }
       
     } catch (error) {

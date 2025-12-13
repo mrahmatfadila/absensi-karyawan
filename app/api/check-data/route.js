@@ -9,10 +9,8 @@ export async function GET() {
       ssl: { rejectUnauthorized: false }
     });
 
-    console.log('=== CHECKING DATABASE DATA ===');
-
+    
     // 1. Check users table
-    console.log('Checking users table...');
     const usersResult = await pool.query(`
       SELECT 
         id, 
@@ -26,7 +24,6 @@ export async function GET() {
     `);
     
     // 2. Check attendance table
-    console.log('Checking attendance table...');
     const attendanceResult = await pool.query(`
       SELECT 
         id,
@@ -41,13 +38,11 @@ export async function GET() {
     `);
     
     // 3. Check departments table
-    console.log('Checking departments table...');
     const departmentsResult = await pool.query(`
       SELECT id, name, description FROM departments ORDER BY id
     `);
     
     // 4. Check leave_requests table
-    console.log('Checking leave_requests table...');
     const leaveResult = await pool.query(`
       SELECT 
         id,
@@ -63,7 +58,6 @@ export async function GET() {
     `);
 
     // 5. Check enum types
-    console.log('Checking enum types...');
     let enumTypes = [];
     try {
       const enumResult = await pool.query(`
@@ -71,7 +65,7 @@ export async function GET() {
       `);
       enumTypes = enumResult.rows.map(row => row.typname);
     } catch (e) {
-      console.log('Error checking enum types:', e.message);
+      // ignore enum check errors
     }
 
     await pool.end();
