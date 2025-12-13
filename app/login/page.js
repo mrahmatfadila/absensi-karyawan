@@ -8,8 +8,8 @@ import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
-    email: 'admin@company.com',
-    password: 'admin123',
+    email: '',
+    password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,50 +23,69 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e) => {
+    // PENTING: Prevent default form submission!
     e.preventDefault();
+    e.stopPropagation();
+    
     setLoading(true);
 
     try {
+      console.log('Submitting login...', { email: formData.email });
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        credentials: 'include',
       });
 
+      console.log('Response status:', response.status);
+      
       const data = await response.json();
+      console.log('Response data:', data);
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         toast.success('Login berhasil!');
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('token', data.token);
+        
+        // Simpan user data dan token
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
         
         // Redirect berdasarkan role
+        const role = data.user?.role || data.user?.role_name;
+        console.log('User role:', role);
+        
         setTimeout(() => {
-          if (data.user.role === 'admin') {
+          if (role === 'admin') {
             router.push('/admin');
-          } else if (data.user.role === 'manager') {
+          } else if (role === 'manager') {
             router.push('/manager');
           } else {
-            router.push('/');
+            router.push('/dashboard');
           }
-        }, 1000);
+        }, 500);
       } else {
-        toast.error(data.error || 'Login gagal');
+        toast.error(data.error || 'Login gagal. Periksa email dan password Anda.');
       }
     } catch (error) {
-      toast.error('Terjadi kesalahan');
+      console.error('Login error:', error);
+      toast.error('Terjadi kesalahan koneksi. Pastikan server berjalan.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-gradient-to-r from-primary-600 to-primary-800 rounded-lg flex items-center justify-center">
+          <div className="mx-auto h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
             <FiUser className="text-white text-xl" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
@@ -74,13 +93,14 @@ export default function LoginPage() {
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Atau{' '}
-            <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+            <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
               daftar akun baru
             </Link>
           </p>
         </div>
 
         <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-200">
+          {/* PENTING: NO action, NO method attribute */}
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -98,8 +118,8 @@ export default function LoginPage() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  placeholder="email@perusahaan.com"
+                  className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  placeholder="admin@company.com"
                 />
               </div>
             </div>
@@ -120,7 +140,7 @@ export default function LoginPage() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                  className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="••••••••"
                 />
                 <button
@@ -143,7 +163,7 @@ export default function LoginPage() {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
                   Ingat saya
@@ -151,7 +171,7 @@ export default function LoginPage() {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-primary-600 hover:text-primary-500">
+                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
                   Lupa password?
                 </a>
               </div>
@@ -161,7 +181,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center">
@@ -180,8 +200,8 @@ export default function LoginPage() {
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Demo login:<br />
-                Admin: admin@company.com / admin123<br />
-                Employee: user@company.com / user123
+                <span className="font-medium">Admin:</span> admin@company.com / admin123<br />
+                <span className="font-medium">Employee:</span> user@company.com / user123
               </p>
             </div>
           </form>

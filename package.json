@@ -18,13 +18,17 @@
     "firebase": "^12.6.0",
     "firebase-admin": "^13.6.0",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^0.561.0",
     "next": "14.0.0",
     "pg": "^8.16.3",
     "react": "18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.4.1",
-    "react-icons": "^4.11.0"
+    "react-icons": "^4.11.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",

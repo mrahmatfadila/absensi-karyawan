@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiCalendar, FiUsers, FiBarChart2, FiSettings, FiClock,  FiFileText} from 'react-icons/fi';
+import { FiMenu, FiX, FiUser, FiLogOut, FiHome, FiCalendar, FiUsers, FiBarChart2, FiSettings, FiClock, FiFileText } from 'react-icons/fi';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,39 +29,68 @@ export default function Navbar() {
     router.push('/login');
   };
 
-  // Di dalam getNavItems function:
-    const getNavItems = () => {
-      if (!user) return [];
-      
-      const baseItems = [
-        { href: '/', label: 'Dashboard', icon: <FiHome /> },
-        { href: '/attendance', label: 'Absensi', icon: <FiCalendar /> },
-      ];
+  const getNavItems = () => {
+    if (!user) return [];
+    
+    const items = [];
 
-      if (user.role === 'admin') {
-        baseItems.push(
-          { href: '/admin', label: 'Admin Panel', icon: <FiSettings /> },
-          { href: '/admin/users', label: 'Kelola Karyawan', icon: <FiUsers /> },
-          { href: '/admin/attendance', label: 'Laporan Absensi', icon: <FiBarChart2 /> }
-        );
-      } else if (user.role === 'manager') {
-        baseItems.push(
-          { href: '/manager', label: 'Manager Panel', icon: <FiSettings /> },
-          { href: '/manager/team', label: 'Tim Saya', icon: <FiUsers /> },
-          { href: '/manager/reports', label: 'Laporan', icon: <FiBarChart2 /> }
-        );
-      } else {
-        // Employee
-        baseItems.push(
-          { href: '/attendance/history', label: 'Riwayat', icon: <FiClock /> },
-          { href: '/leave', label: 'Cuti', icon: <FiFileText /> }
-        );
-      }
+    // Tambahkan dashboard hanya untuk admin dan manager
+    if (user.role === 'admin' || user.role === 'manager') {
+      items.push(
+        { href: '/', label: 'Dashboard', icon: <FiHome /> }
+      );
+    }
 
-      return baseItems;
-    };
+    // Tambahkan Absensi untuk manager dan employee, tapi TIDAK untuk admin
+    if (user.role === 'manager' || user.role === 'employee') {
+      items.push(
+        { href: '/attendance/absensi', label: 'Absensi', icon: <FiCalendar /> }
+      );
+    }
+
+    // Menu khusus untuk admin
+    if (user.role === 'admin') {
+      items.push(
+        { href: '/admin', label: 'Admin Panel', icon: <FiSettings /> },
+        { href: '/admin/users', label: 'Kelola Karyawan', icon: <FiUsers /> },
+        { href: '/admin/attendance', label: 'Laporan Absensi', icon: <FiBarChart2 /> }
+      );
+    } 
+    // Menu khusus untuk manager
+    else if (user.role === 'manager') {
+      items.push(
+        { href: '/manager', label: 'Manager Panel', icon: <FiSettings /> },
+        { href: '/manager/team', label: 'Tim Saya', icon: <FiUsers /> },
+        { href: '/manager/reports', label: 'Laporan', icon: <FiBarChart2 /> }
+      );
+    } 
+    // Menu khusus untuk employee
+    else if (user.role === 'employee') {
+      items.push(
+        { href: '/attendance/riwayat', label: 'Riwayat', icon: <FiClock /> },
+        { href: '/attendance/cuti', label: 'Cuti', icon: <FiFileText /> }
+      );
+    }
+
+    return items;
+  };
 
   const userItems = getNavItems();
+
+  // Fungsi untuk redirect
+  useEffect(() => {
+    if (!user) return;
+
+    // Redirect employee dari dashboard ke absensi
+    if (user.role === 'employee' && pathname === '/') {
+      router.push('/attendance/absensi');
+    }
+    
+    // Redirect admin dari halaman absensi ke dashboard
+    if (user.role === 'admin' && pathname === '/attendance/absensi') {
+      router.push('/');
+    }
+  }, [user, pathname, router]);
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200">
@@ -69,7 +98,10 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex-shrink-0 flex items-center">
+            <Link 
+              href={getLogoLink()} 
+              className="flex-shrink-0 flex items-center"
+            >
               <div className="h-8 w-8 bg-gradient-to-r from-primary-600 to-primary-800 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold">AK</span>
               </div>
@@ -102,9 +134,17 @@ export default function Navbar() {
                 <div className="flex items-center space-x-3">
                   <div className="flex flex-col items-end">
                     <p className="text-sm font-medium text-gray-700">{user.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                    <p className="text-xs text-gray-500 capitalize">
+                      {user.role === 'admin' ? 'Administrator' : 
+                       user.role === 'manager' ? 'Manager' : 
+                       'Karyawan'}
+                    </p>
                   </div>
-                  <div className="h-9 w-9 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-medium">
+                  <div className={`h-9 w-9 rounded-full flex items-center justify-center text-white font-medium ${
+                    user.role === 'admin' ? 'bg-gradient-to-r from-red-500 to-red-700' :
+                    user.role === 'manager' ? 'bg-gradient-to-r from-blue-500 to-blue-700' :
+                    'bg-gradient-to-r from-primary-500 to-primary-700'
+                  }`}>
                     {user.name?.charAt(0) || 'U'}
                   </div>
                 </div>
@@ -165,12 +205,20 @@ export default function Navbar() {
               <>
                 <div className="border-t border-gray-200 pt-4 mt-2">
                   <div className="flex items-center px-3 py-2">
-                    <div className="h-10 w-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-medium">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-medium ${
+                      user.role === 'admin' ? 'bg-gradient-to-r from-red-500 to-red-700' :
+                      user.role === 'manager' ? 'bg-gradient-to-r from-blue-500 to-blue-700' :
+                      'bg-gradient-to-r from-primary-500 to-primary-700'
+                    }`}>
                       {user.name?.charAt(0) || 'U'}
                     </div>
                     <div className="ml-3">
                       <p className="text-sm font-medium text-gray-700">{user.name}</p>
-                      <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {user.role === 'admin' ? 'Administrator' : 
+                         user.role === 'manager' ? 'Manager' : 
+                         'Karyawan'}
+                      </p>
                     </div>
                   </div>
                   <button
@@ -209,4 +257,20 @@ export default function Navbar() {
       )}
     </nav>
   );
+
+  // Helper function untuk menentukan link logo
+  function getLogoLink() {
+    if (!user) return '/';
+    
+    switch(user.role) {
+      case 'admin':
+        return '/';
+      case 'manager':
+        return '/';
+      case 'employee':
+        return '/attendance/absensi';
+      default:
+        return '/';
+    }
+  }
 }
