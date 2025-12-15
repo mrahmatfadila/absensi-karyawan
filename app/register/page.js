@@ -11,7 +11,8 @@ import {
   FiHash,
   FiEye,
   FiEyeOff,
-  FiCalendar 
+  FiCalendar,
+  FiAlertCircle
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -29,6 +30,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingDepartments, setFetchingDepartments] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -37,13 +39,22 @@ export default function RegisterPage() {
 
   const fetchDepartments = async () => {
     try {
+      setFetchingDepartments(true);
       const response = await fetch('/api/departments');
+      
       if (response.ok) {
         const data = await response.json();
         setDepartments(data);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch departments:', errorData);
+        toast.error('Gagal memuat data departemen');
       }
     } catch (error) {
       console.error('Error fetching departments:', error);
+      toast.error('Koneksi error saat memuat departemen');
+    } finally {
+      setFetchingDepartments(false);
     }
   };
 
@@ -57,13 +68,34 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Password dan konfirmasi password tidak cocok');
+    // Validasi
+    if (!formData.employee_id.trim()) {
+      toast.error('ID Karyawan wajib diisi');
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      toast.error('Nama wajib diisi');
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      toast.error('Email wajib diisi');
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
+      toast.error('Format email tidak valid');
       return;
     }
 
     if (formData.password.length < 6) {
       toast.error('Password minimal 6 karakter');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error('Password dan konfirmasi password tidak cocok');
       return;
     }
 
@@ -76,12 +108,12 @@ export default function RegisterPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          employee_id: formData.employee_id,
-          name: formData.name,
-          email: formData.email,
+          employee_id: formData.employee_id.trim(),
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
           password: formData.password,
           department_id: formData.department_id || null,
-          position: formData.position
+          position: formData.position?.trim() || null
         }),
       });
 
@@ -89,6 +121,16 @@ export default function RegisterPage() {
 
       if (response.ok) {
         toast.success('Registrasi berhasil! Silakan login.');
+        // Reset form
+        setFormData({
+          employee_id: '',
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          department_id: '',
+          position: ''
+        });
         setTimeout(() => {
           router.push('/login');
         }, 2000);
@@ -96,7 +138,8 @@ export default function RegisterPage() {
         toast.error(data.error || 'Registrasi gagal');
       }
     } catch (error) {
-      toast.error('Terjadi kesalahan');
+      console.error('Registration error:', error);
+      toast.error('Terjadi kesalahan jaringan');
     } finally {
       setLoading(false);
     }
@@ -121,229 +164,244 @@ export default function RegisterPage() {
         </div>
 
         <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-200">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Employee ID */}
-              <div>
-                <label htmlFor="employee_id" className="block text-sm font-medium text-gray-700">
-                  ID Karyawan
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiHash className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="employee_id"
-                    name="employee_id"
-                    type="text"
-                    required
-                    value={formData.employee_id}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="EMP001"
-                  />
-                </div>
-              </div>
-
-              {/* Name */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Nama Lengkap
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiUser className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="John Doe"
-                  />
-                </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiMail className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="email@perusahaan.com"
-                  />
-                </div>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label htmlFor="department_id" className="block text-sm font-medium text-gray-700">
-                  Departemen
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiBriefcase className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <select
-                    id="department_id"
-                    name="department_id"
-                    value={formData.department_id}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  >
-                    <option value="">Pilih Departemen</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Position */}
-              <div>
-                <label htmlFor="position" className="block text-sm font-medium text-gray-700">
-                  Posisi/Jabatan
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiBriefcase className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="position"
-                    name="position"
-                    type="text"
-                    value={formData.position}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="Staff IT"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiLock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <FiEyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                    ) : (
-                      <FiEye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  Konfirmasi Password
-                </label>
-                <div className="mt-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiLock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <FiEyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                    ) : (
-                      <FiEye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
+          {fetchingDepartments ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Memuat data departemen...</p>
             </div>
+          ) : (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Employee ID */}
+                <div>
+                  <label htmlFor="employee_id" className="block text-sm font-medium text-gray-700 mb-1">
+                    ID Karyawan *
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiHash className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="employee_id"
+                      name="employee_id"
+                      type="text"
+                      required
+                      value={formData.employee_id}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="EMP001"
+                    />
+                  </div>
+                </div>
 
-            <div className="flex items-center">
-              <input
-                id="terms"
-                name="terms"
-                type="checkbox"
-                required
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-              />
-              <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
-                Saya menyetujui{' '}
-                <a href="#" className="text-primary-600 hover:text-primary-500">
-                  syarat dan ketentuan
-                </a>
-                {' '}serta{' '}
-                <a href="#" className="text-primary-600 hover:text-primary-500">
-                  kebijakan privasi
-                </a>
-              </label>
-            </div>
+                {/* Name */}
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Lengkap *
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiUser className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Mendaftarkan...
-                  </span>
-                ) : (
-                  'Daftar Sekarang'
-                )}
-              </button>
-            </div>
-          </form>
+                {/* Email */}
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiMail className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="email@perusahaan.com"
+                    />
+                  </div>
+                </div>
+
+                {/* Department */}
+                <div>
+                  <label htmlFor="department_id" className="block text-sm font-medium text-gray-700 mb-1">
+                    Departemen
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiBriefcase className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <select
+                      id="department_id"
+                      name="department_id"
+                      value={formData.department_id}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base bg-white"
+                    >
+                      <option value="">Pilih Departemen (Opsional)</option>
+                      {departments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {departments.length === 0 && (
+                    <div className="mt-2 flex items-center text-amber-600 text-xs">
+                      <FiAlertCircle className="mr-1" />
+                      Tidak ada departemen tersedia. Hubungi administrator.
+                    </div>
+                  )}
+                </div>
+
+                {/* Position */}
+                <div>
+                  <label htmlFor="position" className="block text-sm font-medium text-gray-700 mb-1">
+                    Posisi/Jabatan
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiBriefcase className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="position"
+                      name="position"
+                      type="text"
+                      value={formData.position}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="Staff IT (Opsional)"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Password *
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiLock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="Minimal 6 karakter"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <FiEyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                      ) : (
+                        <FiEye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    Konfirmasi Password *
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiLock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-sm sm:text-base"
+                      placeholder="Ketik ulang password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? (
+                        <FiEyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                      ) : (
+                        <FiEye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms and Conditions */}
+              <div className="flex items-start">
+                <input
+                  id="terms"
+                  name="terms"
+                  type="checkbox"
+                  required
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mt-1"
+                />
+                <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
+                  Saya menyetujui{' '}
+                  <a href="#" className="text-primary-600 hover:text-primary-500">
+                    syarat dan ketentuan
+                  </a>
+                  {' '}serta{' '}
+                  <a href="#" className="text-primary-600 hover:text-primary-500">
+                    kebijakan privasi
+                  </a>
+                </label>
+              </div>
+
+              {/* Submit Button */}
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading || fetchingDepartments}
+                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Mendaftarkan...
+                    </span>
+                  ) : (
+                    'Daftar Sekarang'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         <div className="text-center">

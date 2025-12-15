@@ -10,7 +10,10 @@ import {
   FiSearch,
   FiFilter,
   FiDownload,
-  FiEye
+  FiEye,
+  FiChevronLeft,
+  FiChevronRight,
+  FiMoreVertical
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -33,6 +36,9 @@ export default function UsersPage() {
   });
   const [departments, setDepartments] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [showMobileActions, setShowMobileActions] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -134,6 +140,7 @@ export default function UsersPage() {
       hire_date: user.hire_date || ''
     });
     setShowModal(true);
+    setShowMobileActions(null);
   };
 
   const handleDelete = async (id) => {
@@ -154,6 +161,7 @@ export default function UsersPage() {
     } catch (error) {
       toast.error('Terjadi kesalahan');
     }
+    setShowMobileActions(null);
   };
 
   const handleRoleChange = async (userId, newRoleId, userName) => {
@@ -174,7 +182,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         toast.success('Role pengguna berhasil diubah');
-        fetchUsers(); // Refresh data
+        fetchUsers();
       } else {
         toast.error(data.error || 'Gagal mengubah role');
       }
@@ -250,6 +258,14 @@ export default function UsersPage() {
     }
   };
 
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -259,25 +275,29 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center text-sm text-gray-600 mb-4">
+    <div className="px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+      {/* Breadcrumb - Hidden on small mobile */}
+      <div className="hidden xs:flex items-center text-sm text-gray-600 mb-3 sm:mb-4">
         <button
           onClick={() => router.push('/admin')}
-          className="hover:text-primary-600"
+          className="hover:text-primary-600 text-xs sm:text-sm"
         >
           Admin
         </button>
         <span className="mx-2">›</span>
-        <span className="text-gray-900">Pengguna</span>
+        <span className="text-gray-900 text-xs sm:text-sm">Pengguna</span>
       </div>
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Kelola Pengguna</h1>
-            <p className="text-gray-600 mt-2">Kelola data karyawan dan pengguna sistem</p>
+      <div className="mb-4 sm:mb-6 md:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+              Kelola Pengguna
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
+              Kelola data karyawan dan pengguna sistem
+            </p>
           </div>
           
           <button
@@ -295,7 +315,7 @@ export default function UsersPage() {
               });
               setShowModal(true);
             }}
-            className="btn-primary flex items-center mt-4 sm:mt-0"
+            className="btn-primary flex items-center justify-center px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap mt-2 sm:mt-0 w-full sm:w-auto"
           >
             <FiUserPlus className="mr-2" />
             Tambah Pengguna
@@ -304,111 +324,124 @@ export default function UsersPage() {
       </div>
 
       {/* Search and Filter */}
-      <div className="card mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="relative flex-1">
+      <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="relative w-full">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FiSearch className="text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Cari berdasarkan nama, email, atau ID..."
+              placeholder="Cari nama, email, atau ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm sm:text-base"
             />
           </div>
           
-          <div className="flex space-x-3">
-            <select className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary-500 flex-1 min-w-[140px]">
               <option>Semua Departemen</option>
               {departments.map(dept => (
                 <option key={dept.id}>{dept.name}</option>
               ))}
             </select>
             
-            <select className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary-500 flex-1 min-w-[120px]">
               <option>Semua Role</option>
               <option>Admin</option>
               <option>Manager</option>
               <option>Employee</option>
             </select>
             
-            <button className="btn-secondary flex items-center">
-              <FiFilter className="mr-2" />
-              Filter
-            </button>
-            
-            <button className="btn-secondary flex items-center">
-              <FiDownload className="mr-2" />
-              Export
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button className="btn-secondary flex items-center justify-center flex-1 sm:flex-none text-sm sm:text-base px-3 py-2">
+                <FiFilter className="mr-2" />
+                <span className="hidden xs:inline">Filter</span>
+              </button>
+              
+              <button className="btn-secondary flex items-center justify-center flex-1 sm:flex-none text-sm sm:text-base px-3 py-2">
+                <FiDownload className="mr-2" />
+                <span className="hidden xs:inline">Export</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ID Karyawan
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Nama
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Email
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Departemen
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Dept
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Posisi
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Role
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Bergabung
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Aksi
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
+              {currentItems.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{user.employee_id}</div>
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[80px] sm:max-w-none">
+                      {user.employee_id}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="flex items-center min-w-0">
                       <div className="flex-shrink-0 h-8 w-8 bg-primary-100 rounded-full flex items-center justify-center">
-                        <span className="text-primary-800 font-medium">
+                        <span className="text-primary-800 font-medium text-xs">
                           {user.name.charAt(0)}
                         </span>
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="ml-2 sm:ml-4 min-w-0">
+                        <div className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[120px] sm:max-w-none">
+                          {user.name}
+                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{user.email}</div>
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="text-xs sm:text-sm text-gray-900 truncate max-w-[120px] sm:max-w-none">
+                      {user.email}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{user.department || '-'}</div>
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="text-xs sm:text-sm text-gray-900 truncate max-w-[80px] sm:max-w-none">
+                      {user.department || '-'}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{user.position || '-'}</div>
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="text-xs sm:text-sm text-gray-900 truncate max-w-[80px] sm:max-w-none">
+                      {user.position || '-'}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                    <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-2">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full ${getRoleBadgeColor(user.role)} whitespace-nowrap`}>
                         {user.role}
                       </span>
                       <select
@@ -422,31 +455,31 @@ export default function UsersPage() {
                       </select>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                     {user.join_date || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
+                  <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex space-x-1 sm:space-x-2">
                       <button
                         onClick={() => router.push(`/admin/users/${user.id}`)}
-                        className="text-primary-600 hover:text-primary-900"
+                        className="text-primary-600 hover:text-primary-900 p-1"
                         title="Lihat Detail"
                       >
-                        <FiEye size={18} />
+                        <FiEye size={16} />
                       </button>
                       <button
                         onClick={() => handleEdit(user)}
-                        className="text-yellow-600 hover:text-yellow-900"
+                        className="text-yellow-600 hover:text-yellow-900 p-1"
                         title="Edit"
                       >
-                        <FiEdit size={18} />
+                        <FiEdit size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 p-1"
                         title="Hapus"
                       >
-                        <FiTrash2 size={18} />
+                        <FiTrash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -455,9 +488,112 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-200">
+          {currentItems.length > 0 ? (
+            currentItems.map((user) => (
+              <div key={user.id} className="p-4 hover:bg-gray-50">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center mb-2">
+                      <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                        <span className="text-primary-800 font-medium">
+                          {user.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="ml-3 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-sm font-medium text-gray-900 truncate">
+                            {user.name}
+                          </h3>
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                            {user.role}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 truncate">ID: {user.employee_id}</p>
+                        <p className="text-xs text-gray-600 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                      <div>
+                        <span className="text-gray-500">Departemen:</span>
+                        <p className="font-medium text-gray-900 truncate">{user.department || '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Posisi:</span>
+                        <p className="font-medium text-gray-900 truncate">{user.position || '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Bergabung:</span>
+                        <p className="font-medium text-gray-900">{user.join_date || '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Role:</span>
+                        <select
+                          value={user.role === 'admin' ? '1' : user.role === 'manager' ? '2' : '3'}
+                          onChange={(e) => handleRoleChange(user.id, e.target.value, user.name)}
+                          className={`w-full mt-1 px-2 py-1 text-xs border rounded-lg ${getRoleSelectColor(user.role === 'admin' ? '1' : user.role === 'manager' ? '2' : '3')}`}
+                        >
+                          <option value="1">Admin</option>
+                          <option value="2">Manager</option>
+                          <option value="3">Employee</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="relative ml-2">
+                    <button
+                      onClick={() => setShowMobileActions(showMobileActions === user.id ? null : user.id)}
+                      className="p-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <FiMoreVertical size={20} />
+                    </button>
+                    
+                    {showMobileActions === user.id && (
+                      <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                        <button
+                          onClick={() => {
+                            router.push(`/admin/users/${user.id}`);
+                            setShowMobileActions(null);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                        >
+                          <FiEye className="mr-2" /> Lihat Detail
+                        </button>
+                        <button
+                          onClick={() => handleEdit(user)}
+                          className="w-full px-4 py-2 text-left text-sm text-yellow-700 hover:bg-yellow-50 flex items-center"
+                        >
+                          <FiEdit className="mr-2" /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(user.id)}
+                          className="w-full px-4 py-2 text-left text-sm text-red-700 hover:bg-red-50 flex items-center"
+                        >
+                          <FiTrash2 className="mr-2" /> Hapus
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 px-4">
+              <FiUsers className="mx-auto h-10 w-10 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak ada pengguna</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                {search ? 'Tidak ditemukan hasil pencarian' : 'Mulai dengan menambahkan pengguna baru'}
+              </p>
+            </div>
+          )}
+        </div>
         
         {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
+          <div className="text-center py-8 px-4">
             <FiUsers className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak ada pengguna</h3>
             <p className="mt-1 text-sm text-gray-500">
@@ -467,26 +603,80 @@ export default function UsersPage() {
         )}
       </div>
 
+      {/* Pagination */}
+      {filteredUsers.length > 0 && (
+        <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs sm:text-sm text-gray-600">
+            Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredUsers.length)} dari {filteredUsers.length} pengguna
+          </div>
+          
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+            >
+              <FiChevronLeft className="w-4 h-4" />
+            </button>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNumber;
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = totalPages - 4 + i;
+              } else {
+                pageNumber = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => paginate(pageNumber)}
+                  className={`px-3 py-1 rounded-lg text-sm ${
+                    currentPage === pageNumber
+                      ? 'bg-primary-600 text-white'
+                      : 'border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+            
+            <button
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+            >
+              <FiChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit User Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-xl bg-white">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 px-2 sm:px-4">
+          <div className="relative top-2 sm:top-4 md:top-8 lg:top-20 mx-auto p-4 sm:p-5 border w-full max-w-2xl shadow-lg rounded-lg sm:rounded-xl bg-white">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">
                 {editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-400 hover:text-gray-500 text-xl sm:text-2xl"
               >
-                <span className="text-2xl">×</span>
+                ×
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     ID Karyawan *
                   </label>
                   <input
@@ -494,13 +684,13 @@ export default function UsersPage() {
                     required
                     value={formData.employee_id}
                     onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                     placeholder="EMP001"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Nama Lengkap *
                   </label>
                   <input
@@ -508,13 +698,13 @@ export default function UsersPage() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                     placeholder="John Doe"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Email *
                   </label>
                   <input
@@ -522,13 +712,13 @@ export default function UsersPage() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                     placeholder="email@company.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     {editingUser ? 'Password (kosongkan jika tidak diubah)' : 'Password *'}
                   </label>
                   <input
@@ -536,20 +726,20 @@ export default function UsersPage() {
                     required={!editingUser}
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                     placeholder="••••••••"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Role *
                   </label>
                   <select
                     required
                     value={formData.role_id}
                     onChange={(e) => setFormData({...formData, role_id: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                   >
                     <option value="">Pilih Role</option>
                     {roles.map(role => (
@@ -561,13 +751,13 @@ export default function UsersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Departemen
                   </label>
                   <select
                     value={formData.department_id}
                     onChange={(e) => setFormData({...formData, department_id: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                   >
                     <option value="">Pilih Departemen</option>
                     {departments.map(dept => (
@@ -579,42 +769,42 @@ export default function UsersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Posisi
                   </label>
                   <input
                     type="text"
                     value={formData.position}
                     onChange={(e) => setFormData({...formData, position: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                     placeholder="Staff IT"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Tanggal Bergabung
                   </label>
                   <input
                     type="date"
                     value={formData.hire_date}
                     onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
-                    className="input-primary"
+                    className="input-primary text-sm sm:text-base"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="btn-secondary"
+                  className="btn-secondary text-sm sm:text-base px-4 py-2"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary"
+                  className="btn-primary text-sm sm:text-base px-4 py-2"
                 >
                   {editingUser ? 'Update' : 'Simpan'}
                 </button>

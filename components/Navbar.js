@@ -64,51 +64,53 @@ export default function Navbar() {
   };
 
   // Fungsi untuk mendapatkan menu berdasarkan role user
-  const getNavItems = () => {
-    if (!user) return [];
-    
-    const items = [];
+  // Fungsi untuk mendapatkan menu berdasarkan role user
+    const getNavItems = () => {
+      if (!user) return [];
+      
+      const items = [];
 
-    // Tambahkan dashboard hanya untuk admin dan manager
-    if (user.role === 'admin' || user.role === 'manager') {
-      items.push(
-        { href: '/', label: 'Dashboard', icon: <FiHome /> }
-      );
-    }
+      // Dashboard hanya untuk admin, TIDAK untuk manager dan employee
+      if (user.role === 'admin') {
+        items.push(
+          { href: '/', label: 'Dashboard', icon: <FiHome /> }
+        );
+      }
 
-    // Tambahkan Absensi untuk manager dan employee, tapi TIDAK untuk admin
-    if (user.role === 'manager' || user.role === 'employee') {
-      items.push(
-        { href: '/attendance/absensi', label: 'Absensi', icon: <FiCalendar /> }
-      );
-    }
+      // Tambahkan Absensi untuk manager dan employee
+      if (user.role === 'manager' || user.role === 'employee') {
+        items.push(
+          { href: '/attendance/absensi', label: 'Absensi', icon: <FiCalendar /> }
+        );
+      }
 
-    // Menu khusus untuk admin
-    if (user.role === 'admin') {
-      items.push(
-        { href: '/admin', label: 'Admin Panel', icon: <FiSettings /> },
-        { href: '/admin/users', label: 'Kelola Karyawan', icon: <FiUsers /> },
-        { href: '/admin/attendance', label: 'Laporan Absensi', icon: <FiBarChart2 /> }
-      );
-    } 
-    // Menu khusus untuk manager
-    else if (user.role === 'manager') {
-      items.push(
-        { href: '/manager', label: 'Manager Panel', icon: <FiSettings /> },
-        { href: '/manager/team', label: 'Tim Saya', icon: <FiUsers /> },
-        { href: '/manager/reports', label: 'Laporan', icon: <FiBarChart2 /> }
-      );
-    } 
-    // Menu khusus untuk employee
-    else if (user.role === 'employee') {
-      items.push(
-        { href: '/attendance/riwayat', label: 'Riwayat', icon: <FiClock /> },
-        { href: '/attendance/cuti', label: 'Cuti', icon: <FiFileText /> }
-      );
-    }
+      // Menu khusus untuk admin
+      if (user.role === 'admin') {
+        items.push(
+          { href: '/admin', label: 'Admin Panel', icon: <FiSettings /> },
+          { href: '/admin/users', label: 'Kelola Karyawan', icon: <FiUsers /> },
+          { href: '/admin/attendance', label: 'Laporan Absensi', icon: <FiBarChart2 /> }
+        );
+      } 
+      // Menu khusus untuk manager (TANPA Dashboard)
+      else if (user.role === 'manager') {
+        // Manager langsung ke manager panel, tidak ada dashboard
+        items.push(
+          { href: '/manager', label: 'Manager Panel', icon: <FiSettings /> },
+          { href: '/manager/team', label: 'Tim Saya', icon: <FiUsers /> },
+          { href: '/manager/reports', label: 'Laporan', icon: <FiBarChart2 /> }
+        );
+      } 
+      // Menu khusus untuk employee
+      else if (user.role === 'employee') {
+        items.push(
+          { href: '/attendance/riwayat', label: 'Riwayat', icon: <FiClock /> },
+          { href: '/attendance/cuti', label: 'Cuti', icon: <FiFileText /> }
+        );
+      }
 
-    return items;
-  };
+      return items;
+    };
 
   // Fungsi untuk menentukan link logo
   const getLogoLink = () => {
@@ -116,11 +118,11 @@ export default function Navbar() {
     
     switch(user.role) {
       case 'admin':
-        return '/';
+        return '/'; // Admin ke dashboard
       case 'manager':
-        return '/';
+        return '/manager'; // Manager langsung ke manager panel
       case 'employee':
-        return '/attendance/absensi';
+        return '/attendance/absensi'; // Employee ke absensi
       default:
         return '/';
     }

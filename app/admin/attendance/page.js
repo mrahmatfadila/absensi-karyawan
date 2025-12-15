@@ -7,28 +7,19 @@ import {
   FiDownload, 
   FiFilter, 
   FiSearch,
-  FiEye,
-  FiEdit,
-  FiTrash2,
   FiBarChart2,
   FiUser,
   FiClock,
   FiCheckCircle,
   FiXCircle,
   FiRefreshCw,
-  FiPrinter,
   FiFileText,
-  FiPieChart,
-  FiTrendingUp,
-  FiTrendingDown,
   FiAlertCircle,
   FiMapPin
 } from 'react-icons/fi';
-import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { id } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 export default function AttendanceReport() {
@@ -51,10 +42,11 @@ export default function AttendanceReport() {
     averageHours: '0h 0m'
   });
   const [departments, setDepartments] = useState([]);
-  const [userStats, setUserStats] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState('pdf');
   const [exportLoading, setExportLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const router = useRouter();
 
   useEffect(() => {
@@ -64,6 +56,7 @@ export default function AttendanceReport() {
 
   useEffect(() => {
     filterAttendance();
+    setCurrentPage(1); // Reset ke halaman 1 saat filter berubah
   }, [search, attendance, selectedDepartment, selectedStatus]);
 
   const checkAuth = () => {
@@ -81,54 +74,32 @@ export default function AttendanceReport() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [attendanceRes, departmentsRes, userStatsRes] = await Promise.all([
-        fetch(`/api/attendance/report?start=${dateRange.start}&end=${dateRange.end}`),
-        fetch('/api/departments'),
-        fetch(`/api/attendance/user-stats?start=${dateRange.start}&end=${dateRange.end}`)
-      ]);
+      
+      // Fetch attendance data
+      const attendanceRes = await fetch(
+        `/api/attendance?start=${dateRange.start}&end=${dateRange.end}`
+      );
+      
+      // Fetch departments
+      const departmentsRes = await fetch('/api/departments');
 
       if (attendanceRes.ok) {
         const data = await attendanceRes.json();
+        console.log('Attendance data received:', data);
+        
         setAttendance(data);
         setFilteredAttendance(data);
         
-        // Calculate stats
-        const present = data.filter(a => a.status === 'present').length;
-        const late = data.filter(a => a.status === 'late').length;
-        const absent = data.filter(a => a.status === 'absent').length;
-        const leave = data.filter(a => a.status === 'leave').length;
-        
-        // Calculate average working hours
-        const workingHours = data
-          .filter(a => a.check_in && a.check_out)
-          .map(a => {
-            const hours = (new Date(a.check_out) - new Date(a.check_in)) / (1000 * 60 * 60);
-            return hours;
-          });
-        
-        const avgHours = workingHours.length > 0 ? 
-          workingHours.reduce((a, b) => a + b) / workingHours.length : 0;
-        
-        const avgHoursStr = `${Math.floor(avgHours)}h ${Math.round((avgHours % 1) * 60)}m`;
-
-        setStats({
-          total: data.length,
-          present,
-          late,
-          absent,
-          leave,
-          averageHours: avgHoursStr
-        });
+        // Calculate stats from the data
+        calculateStats(data);
+      } else {
+        console.error('Failed to fetch attendance:', attendanceRes.status);
+        toast.error('Gagal memuat data absensi');
       }
 
       if (departmentsRes.ok) {
         const depts = await departmentsRes.json();
         setDepartments(depts);
-      }
-
-      if (userStatsRes.ok) {
-        const stats = await userStatsRes.json();
-        setUserStats(stats);
       }
 
     } catch (error) {
@@ -139,22 +110,60 @@ export default function AttendanceReport() {
     }
   };
 
+  const calculateStats = (data) => {
+    const present = data.filter(a => a.status === 'present').length;
+    const late = data.filter(a => a.status === 'late').length;
+    const absent = data.filter(a => a.status === 'absent').length;
+    const leave = data.filter(a => a.status === 'leave').length;
+    
+    // Calculate average working hours
+    const workingHours = data
+      .filter(a => a.check_in && a.check_out)
+      .map(a => {
+        try {
+          const checkIn = new Date(a.check_in);
+          const checkOut = new Date(a.check_out);
+          const hours = (checkOut - checkIn) / (1000 * 60 * 60);
+          return hours;
+        } catch (error) {
+          console.error('Error calculating hours:', error);
+          return 0;
+        }
+      })
+      .filter(hours => !isNaN(hours) && hours > 0);
+    
+    const avgHours = workingHours.length > 0 ? 
+      workingHours.reduce((a, b) => a + b) / workingHours.length : 0;
+    
+    const avgHoursStr = `${Math.floor(avgHours)}h ${Math.round((avgHours % 1) * 60)}m`;
+
+    setStats({
+      total: data.length,
+      present,
+      late,
+      absent,
+      leave,
+      averageHours: avgHoursStr
+    });
+  };
+
   const filterAttendance = () => {
     let filtered = attendance;
 
     // Filter by search
     if (search.trim()) {
       filtered = filtered.filter(att =>
-        att.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-        att.employee_id?.toLowerCase().includes(search.toLowerCase()) ||
-        att.department_name?.toLowerCase().includes(search.toLowerCase())
+        (att.user_name?.toLowerCase().includes(search.toLowerCase())) ||
+        (att.employee_id?.toString().toLowerCase().includes(search.toLowerCase())) ||
+        (att.department?.toLowerCase().includes(search.toLowerCase())) ||
+        (att.location?.toLowerCase().includes(search.toLowerCase()))
       );
     }
 
     // Filter by department
     if (selectedDepartment !== 'all') {
       filtered = filtered.filter(att => 
-        att.department_id?.toString() === selectedDepartment
+        att.department?.toString() === selectedDepartment
       );
     }
 
@@ -200,22 +209,49 @@ export default function AttendanceReport() {
 
   const formatTime = (dateString) => {
     if (!dateString) return '-';
-    return format(new Date(dateString), 'HH:mm');
+    try {
+      return format(new Date(dateString), 'HH:mm');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '-';
+    }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    return format(new Date(dateString), 'dd MMM yyyy', { locale: id });
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy', { locale: id });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '-';
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: id });
+    } catch (error) {
+      console.error('Error formatting datetime:', error);
+      return '-';
+    }
   };
 
   const calculateDuration = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return '-';
     
-    const diffMs = new Date(checkOut) - new Date(checkIn);
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${diffHrs}h ${diffMins}m`;
+    try {
+      const diffMs = new Date(checkOut) - new Date(checkIn);
+      if (diffMs < 0) return '-';
+      
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      return `${diffHrs}h ${diffMins}m`;
+    } catch (error) {
+      console.error('Error calculating duration:', error);
+      return '-';
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -250,20 +286,62 @@ export default function AttendanceReport() {
     }
   };
 
-  // Export Functions
-  const exportToPDF = () => {
+  const getStatusText = (status) => {
+    const texts = {
+      present: 'Hadir',
+      late: 'Terlambat',
+      absent: 'Tidak Hadir',
+      leave: 'Cuti'
+    };
+    return texts[status] || status;
+  };
+
+  const truncateLocation = (location, maxLength = 30) => {
+    if (!location || location === '-') return '-';
+    if (location.length <= maxLength) return location;
+    return location.substring(0, maxLength) + '...';
+  };
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredAttendance.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAttendance.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Export Functions - PDF dengan cara manual (tanpa autotable)
+  const exportToPDF = async () => {
     setExportLoading(true);
     
     try {
-      const doc = new jsPDF();
+      // Dynamically import jsPDF dan autotable
+      const { jsPDF } = await import('jspdf');
+      const autoTableImport = await import('jspdf-autotable');
+      
+      // Initialize jsPDF
+      const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Add autoTable to jsPDF instance
+      const autoTable = autoTableImport.default || autoTableImport;
       
       // Title
-      doc.setFontSize(20);
-      doc.text('Laporan Absensi Karyawan', pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LAPORAN ABSENSI KARYAWAN', pageWidth / 2, 15, { align: 'center' });
+      
+      // Company Info
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sistem Absensi Karyawan', pageWidth / 2, 22, { align: 'center' });
       
       // Date Range
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.text(
         `Periode: ${format(new Date(dateRange.start), 'dd MMMM yyyy', { locale: id })} - ${format(new Date(dateRange.end), 'dd MMMM yyyy', { locale: id })}`,
         pageWidth / 2,
@@ -271,78 +349,118 @@ export default function AttendanceReport() {
         { align: 'center' }
       );
       
-      // Stats
-      doc.setFontSize(14);
-      doc.text('Statistik', 14, 45);
+      // Export timestamp
+      doc.setFontSize(9);
+      doc.text(
+        `Dicetak pada: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: id })}`,
+        pageWidth - 10,
+        37,
+        { align: 'right' }
+      );
       
-      const statsData = [
-        ['Total Absensi', stats.total],
-        ['Hadir', `${stats.present} (${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}%)`],
-        ['Terlambat', `${stats.late} (${stats.total > 0 ? Math.round((stats.late / stats.total) * 100) : 0}%)`],
-        ['Tidak Hadir', `${stats.absent} (${stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0}%)`],
-        ['Cuti', `${stats.leave} (${stats.total > 0 ? Math.round((stats.leave / stats.total) * 100) : 0}%)`],
-        ['Rata-rata Jam Kerja', stats.averageHours]
+      // Stats Box
+      const statsBoxY = 45;
+      doc.setDrawColor(200);
+      doc.setFillColor(245, 247, 250);
+      doc.rect(10, statsBoxY, pageWidth - 20, 20, 'FD');
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINGKASAN STATISTIK', 15, statsBoxY + 7);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const statsText = [
+        `Total: ${stats.total} data`,
+        `Hadir: ${stats.present} (${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}%)`,
+        `Terlambat: ${stats.late} (${stats.total > 0 ? Math.round((stats.late / stats.total) * 100) : 0}%)`,
+        `Tidak Hadir: ${stats.absent} (${stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0}%)`,
+        `Cuti: ${stats.leave} (${stats.total > 0 ? Math.round((stats.leave / stats.total) * 100) : 0}%)`,
+        `Rata-rata Jam Kerja: ${stats.averageHours}`
       ];
       
-      doc.autoTable({
-        startY: 50,
-        head: [['Kategori', 'Nilai']],
-        body: statsData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] },
-        styles: { fontSize: 10, cellPadding: 3 }
+      statsText.forEach((text, index) => {
+        const xPos = 15 + (index % 3) * 85;
+        const yPos = statsBoxY + 15 + Math.floor(index / 3) * 5;
+        doc.text(text, xPos, yPos);
       });
       
       // Attendance Data
-      doc.setFontSize(14);
-      doc.text('Data Absensi', 14, doc.lastAutoTable.finalY + 15);
+      const tableStartY = statsBoxY + 30;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DATA ABSENSI DETAIL', 15, tableStartY - 5);
       
-      const tableData = filteredAttendance.map(att => [
+      // Prepare table data
+      const tableData = filteredAttendance.map((att, index) => [
+        (index + 1).toString(),
         formatDate(att.check_in),
-        att.user_name,
-        att.employee_id,
-        att.department_name || '-',
+        att.user_name || '-',
+        att.employee_id || '-',
+        att.department || '-',
         formatTime(att.check_in),
         formatTime(att.check_out),
         calculateDuration(att.check_in, att.check_out),
-        getStatusText(att.status)
+        getStatusText(att.status),
+        att.location || '-',
+        att.notes || '-'
       ]);
       
-      doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 20,
-        head: [['Tanggal', 'Nama', 'ID', 'Departemen', 'Check-in', 'Check-out', 'Durasi', 'Status']],
+      // Use autoTable
+      autoTable(doc, {
+        startY: tableStartY,
+        head: [['No', 'Tanggal', 'Nama', 'ID', 'Departemen', 'Check-in', 'Check-out', 'Durasi', 'Status', 'Lokasi', 'Catatan']],
         body: tableData,
         theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] },
-        styles: { fontSize: 8, cellPadding: 2 },
-        margin: { top: 10 }
+        headStyles: { 
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 9
+        },
+        styles: { 
+          fontSize: 8, 
+          cellPadding: 2,
+          overflow: 'linebreak',
+          cellWidth: 'wrap'
+        },
+        columnStyles: {
+          0: { cellWidth: 10 },  // No
+          1: { cellWidth: 22 },  // Tanggal
+          2: { cellWidth: 30 },  // Nama
+          3: { cellWidth: 18 },  // ID
+          4: { cellWidth: 22 },  // Departemen
+          5: { cellWidth: 18 },  // Check-in
+          6: { cellWidth: 18 },  // Check-out
+          7: { cellWidth: 18 },  // Durasi
+          8: { cellWidth: 18 },  // Status
+          9: { cellWidth: 35 },  // Lokasi
+          10: { cellWidth: 30 }  // Catatan
+        },
+        margin: { left: 10, right: 10 },
+        pageBreak: 'auto',
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Halaman ${data.pageNumber} dari ${pageCount}`,
+            data.settings.margin.left,
+            pageHeight - 10
+          );
+        }
       });
       
-      // Footer
-      const pageCount = doc.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(10);
-        doc.text(
-          `Halaman ${i} dari ${pageCount}`,
-          pageWidth / 2,
-          doc.internal.pageSize.getHeight() - 10,
-          { align: 'center' }
-        );
-        doc.text(
-          `Dibuat pada: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: id })}`,
-          pageWidth - 10,
-          doc.internal.pageSize.getHeight() - 10,
-          { align: 'right' }
-        );
-      }
+      // Save file
+      const fileName = `Laporan_Absensi_${format(new Date(dateRange.start), 'yyyyMMdd')}_${format(new Date(dateRange.end), 'yyyyMMdd')}.pdf`;
+      doc.save(fileName);
       
-      doc.save(`laporan-absensi-${dateRange.start}-${dateRange.end}.pdf`);
       toast.success('PDF berhasil diexport');
       
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      toast.error('Gagal mengexport PDF');
+      toast.error('Gagal mengexport PDF: ' + error.message);
     } finally {
       setExportLoading(false);
       setShowExportModal(false);
@@ -353,37 +471,68 @@ export default function AttendanceReport() {
     setExportLoading(true);
     
     try {
-      // Prepare data
+      // Prepare data for Excel
       const workbook = XLSX.utils.book_new();
       
-      // Stats sheet
+      // 1. Stats Sheet
       const statsData = [
         ['LAPORAN ABSENSI KARYAWAN'],
-        [`Periode: ${format(new Date(dateRange.start), 'dd MMMM yyyy', { locale: id })} - ${format(new Date(dateRange.end), 'dd MMMM yyyy', { locale: id })}`],
         [''],
-        ['STATISTIK'],
-        ['Kategori', 'Nilai'],
+        ['Perusahaan', 'Sistem Absensi Karyawan'],
+        ['Periode', `${format(new Date(dateRange.start), 'dd MMMM yyyy', { locale: id })} - ${format(new Date(dateRange.end), 'dd MMMM yyyy', { locale: id })}`],
+        ['Tanggal Export', format(new Date(), 'dd/MM/yyyy HH:mm', { locale: id })],
+        [''],
+        ['RINGKASAN STATISTIK'],
         ['Total Absensi', stats.total],
-        ['Hadir', stats.present],
-        ['Persentase Hadir', `${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}%`],
-        ['Terlambat', stats.late],
-        ['Persentase Terlambat', `${stats.total > 0 ? Math.round((stats.late / stats.total) * 100) : 0}%`],
-        ['Tidak Hadir', stats.absent],
-        ['Persentase Tidak Hadir', `${stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0}%`],
-        ['Cuti', stats.leave],
-        ['Persentase Cuti', `${stats.total > 0 ? Math.round((stats.leave / stats.total) * 100) : 0}%`],
-        ['Rata-rata Jam Kerja', stats.averageHours]
+        ['Hadir', `${stats.present} (${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}%)`],
+        ['Terlambat', `${stats.late} (${stats.total > 0 ? Math.round((stats.late / stats.total) * 100) : 0}%)`],
+        ['Tidak Hadir', `${stats.absent} (${stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0}%)`],
+        ['Cuti', `${stats.leave} (${stats.total > 0 ? Math.round((stats.leave / stats.total) * 100) : 0}%)`],
+        ['Rata-rata Jam Kerja', stats.averageHours],
+        [''],
+        ['Jumlah Data', filteredAttendance.length]
       ];
       
       const statsSheet = XLSX.utils.aoa_to_sheet(statsData);
+      
+      // Style the stats sheet
+      const statsRange = XLSX.utils.decode_range(statsSheet['!ref']);
+      for (let R = 0; R <= statsRange.e.r; ++R) {
+        const cell_address = { c: 0, r: R };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        if (!statsSheet[cell_ref]) continue;
+        
+        // Style title row
+        if (R === 0) {
+          statsSheet[cell_ref].s = {
+            font: { bold: true, sz: 16 },
+            alignment: { horizontal: 'center' }
+          };
+        }
+        
+        // Style section headers
+        if (R === 6) {
+          statsSheet[cell_ref].s = {
+            font: { bold: true, sz: 14 },
+            fill: { fgColor: { rgb: "E6F2FF" } }
+          };
+        }
+      }
+      
+      // Merge cells for title
+      statsSheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }
+      ];
+      
       XLSX.utils.book_append_sheet(workbook, statsSheet, 'Statistik');
       
-      // Attendance sheet
-      const attendanceData = filteredAttendance.map(att => ({
+      // 2. Attendance Data Sheet
+      const attendanceData = filteredAttendance.map((att, index) => ({
+        'No': index + 1,
         'Tanggal': formatDate(att.check_in),
-        'Nama Karyawan': att.user_name,
-        'ID Karyawan': att.employee_id,
-        'Departemen': att.department_name || '-',
+        'Nama Karyawan': att.user_name || '-',
+        'ID Karyawan': att.employee_id || '-',
+        'Departemen': att.department || '-',
         'Check-in': formatTime(att.check_in),
         'Check-out': formatTime(att.check_out),
         'Durasi': calculateDuration(att.check_in, att.check_out),
@@ -393,31 +542,98 @@ export default function AttendanceReport() {
       }));
       
       const attendanceSheet = XLSX.utils.json_to_sheet(attendanceData);
+      
+      // Add header styling
+      const headerRange = XLSX.utils.decode_range(attendanceSheet['!ref']);
+      for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+        const cell_address = { c: C, r: 0 };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        attendanceSheet[cell_ref].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "3B82F6" } },
+          alignment: { horizontal: 'center' }
+        };
+      }
+      
+      // Set column widths
+      attendanceSheet['!cols'] = [
+        { wch: 5 },   // No
+        { wch: 12 },  // Tanggal
+        { wch: 25 },  // Nama
+        { wch: 15 },  // ID
+        { wch: 20 },  // Departemen
+        { wch: 10 },  // Check-in
+        { wch: 10 },  // Check-out
+        { wch: 10 },  // Durasi
+        { wch: 12 },  // Status
+        { wch: 35 },  // Lokasi
+        { wch: 30 }   // Catatan
+      ];
+      
       XLSX.utils.book_append_sheet(workbook, attendanceSheet, 'Data Absensi');
       
-      // User stats sheet
-      const userStatsData = userStats.map(stat => ({
-        'Nama': stat.user_name,
-        'ID': stat.employee_id,
-        'Departemen': stat.department_name || '-',
-        'Total Hadir': stat.present_count,
-        'Total Terlambat': stat.late_count,
-        'Total Tidak Hadir': stat.absent_count,
-        'Total Cuti': stat.leave_count,
-        'Persentase Hadir': `${stat.total_days > 0 ? Math.round((stat.present_count / stat.total_days) * 100) : 0}%`,
-        'Rata-rata Jam Kerja': stat.avg_hours
+      // 3. Summary by Department Sheet
+      const departmentSummary = {};
+      filteredAttendance.forEach(att => {
+        const dept = att.department || 'Tidak Diketahui';
+        if (!departmentSummary[dept]) {
+          departmentSummary[dept] = {
+            present: 0,
+            late: 0,
+            absent: 0,
+            leave: 0,
+            total: 0
+          };
+        }
+        departmentSummary[dept][att.status] += 1;
+        departmentSummary[dept].total += 1;
+      });
+      
+      const departmentData = Object.entries(departmentSummary).map(([dept, stats]) => ({
+        'Departemen': dept,
+        'Hadir': stats.present,
+        'Terlambat': stats.late,
+        'Tidak Hadir': stats.absent,
+        'Cuti': stats.leave,
+        'Total': stats.total,
+        'Persentase Hadir': `${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}%`
       }));
       
-      const userStatsSheet = XLSX.utils.json_to_sheet(userStatsData);
-      XLSX.utils.book_append_sheet(workbook, userStatsSheet, 'Statistik Karyawan');
+      const departmentSheet = XLSX.utils.json_to_sheet(departmentData);
+      
+      // Style department sheet header
+      const deptHeaderRange = XLSX.utils.decode_range(departmentSheet['!ref']);
+      for (let C = deptHeaderRange.s.c; C <= deptHeaderRange.e.c; ++C) {
+        const cell_address = { c: C, r: 0 };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        departmentSheet[cell_ref].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "10B981" } },
+          alignment: { horizontal: 'center' }
+        };
+      }
+      
+      departmentSheet['!cols'] = [
+        { wch: 25 },  // Departemen
+        { wch: 10 },  // Hadir
+        { wch: 12 },  // Terlambat
+        { wch: 15 },  // Tidak Hadir
+        { wch: 10 },  // Cuti
+        { wch: 10 },  // Total
+        { wch: 15 }   // Persentase
+      ];
+      
+      XLSX.utils.book_append_sheet(workbook, departmentSheet, 'Rekap Departemen');
       
       // Save file
-      XLSX.writeFile(workbook, `laporan-absensi-${dateRange.start}-${dateRange.end}.xlsx`);
+      const fileName = `Laporan_Absensi_${format(new Date(dateRange.start), 'yyyyMMdd')}_${format(new Date(dateRange.end), 'yyyyMMdd')}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      
       toast.success('Excel berhasil diexport');
       
     } catch (error) {
       console.error('Error exporting Excel:', error);
-      toast.error('Gagal mengexport Excel');
+      toast.error('Gagal mengexport Excel: ' + error.message);
     } finally {
       setExportLoading(false);
       setShowExportModal(false);
@@ -428,39 +644,62 @@ export default function AttendanceReport() {
     setExportLoading(true);
     
     try {
-      const csvData = filteredAttendance.map(att => ({
-        Tanggal: formatDate(att.check_in),
-        'Nama Karyawan': att.user_name,
-        'ID Karyawan': att.employee_id,
-        Departemen: att.department_name || '-',
+      const csvData = filteredAttendance.map((att, index) => ({
+        'No': index + 1,
+        'Tanggal': formatDate(att.check_in),
+        'Nama Karyawan': att.user_name || '-',
+        'ID Karyawan': att.employee_id || '-',
+        'Departemen': att.department || '-',
         'Check-in': formatTime(att.check_in),
         'Check-out': formatTime(att.check_out),
-        Durasi: calculateDuration(att.check_in, att.check_out),
-        Status: getStatusText(att.status),
-        Lokasi: att.location || '-',
-        Catatan: att.notes || '-'
+        'Durasi': calculateDuration(att.check_in, att.check_out),
+        'Status': getStatusText(att.status),
+        'Lokasi': att.location || '-',
+        'Catatan': att.notes || '-'
       }));
       
-      const csv = XLSX.utils.json_to_sheet(csvData);
-      const csvContent = XLSX.utils.sheet_to_csv(csv);
+      // Create worksheet
+      const worksheet = XLSX.utils.json_to_sheet(csvData);
       
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Absensi');
+      
+      // Generate CSV
+      const csvOutput = XLSX.utils.sheet_to_csv(worksheet, {
+        FS: ';', // Use semicolon as delimiter for better Excel compatibility
+        RS: '\n',
+        strip: false,
+        blankrows: false
+      });
+      
+      // Add UTF-8 BOM for Excel compatibility
+      const BOM = '\uFEFF';
+      const csvContent = BOM + csvOutput;
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { 
+        type: 'text/csv;charset=utf-8;' 
+      });
+      
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       
       link.setAttribute('href', url);
-      link.setAttribute('download', `laporan-absensi-${dateRange.start}-${dateRange.end}.csv`);
-      link.style.visibility = 'hidden';
+      link.setAttribute('download', `Laporan_Absensi_${format(new Date(dateRange.start), 'yyyyMMdd')}_${format(new Date(dateRange.end), 'yyyyMMdd')}.csv`);
       
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
+      // Clean up
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      
       toast.success('CSV berhasil diexport');
       
     } catch (error) {
       console.error('Error exporting CSV:', error);
-      toast.error('Gagal mengexport CSV');
+      toast.error('Gagal mengexport CSV: ' + error.message);
     } finally {
       setExportLoading(false);
       setShowExportModal(false);
@@ -468,6 +707,11 @@ export default function AttendanceReport() {
   };
 
   const handleExport = () => {
+    if (filteredAttendance.length === 0) {
+      toast.error('Tidak ada data untuk diexport');
+      return;
+    }
+
     switch(exportFormat) {
       case 'pdf':
         exportToPDF();
@@ -481,25 +725,6 @@ export default function AttendanceReport() {
       default:
         exportToPDF();
     }
-  };
-
-  const getStatusText = (status) => {
-    const texts = {
-      present: 'Hadir',
-      late: 'Terlambat',
-      absent: 'Tidak Hadir',
-      leave: 'Cuti'
-    };
-    return texts[status] || status;
-  };
-
-  const getTrendIcon = (current, previous) => {
-    if (current > previous) {
-      return <FiTrendingUp className="text-green-500" />;
-    } else if (current < previous) {
-      return <FiTrendingDown className="text-red-500" />;
-    }
-    return null;
   };
 
   if (loading) {
@@ -528,7 +753,8 @@ export default function AttendanceReport() {
           <div className="mt-4 sm:mt-0 flex flex-wrap gap-3">
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 font-medium transition-all flex items-center"
+              disabled={filteredAttendance.length === 0}
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 font-medium transition-all flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FiDownload className="mr-2" />
               Export Laporan
@@ -658,7 +884,7 @@ export default function AttendanceReport() {
             >
               <option value="all">Semua Departemen</option>
               {departments.map(dept => (
-                <option key={dept.id} value={dept.id}>
+                <option key={dept.id} value={dept.name}>
                   {dept.name}
                 </option>
               ))}
@@ -692,7 +918,7 @@ export default function AttendanceReport() {
               </div>
               <input
                 type="text"
-                placeholder="Cari nama, ID, atau departemen..."
+                placeholder="Cari nama, ID, departemen, atau lokasi..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -741,66 +967,81 @@ export default function AttendanceReport() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Tanggal</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Karyawan</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Departemen</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Check-in</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Check-out</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Durasi</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Lokasi</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Aksi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Tanggal
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Karyawan
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Departemen
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Check-in
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Check-out
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Durasi
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                  Lokasi
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredAttendance.map((att) => (
+              {currentItems.map((att) => (
                 <tr key={att.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {formatDate(att.check_in)}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {format(new Date(att.check_in), 'EEEE', { locale: id })}
+                    <div className="text-xs text-gray-500">
+                      {att.check_in ? format(new Date(att.check_in), 'EEEE', { locale: id }) : '-'}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-medium">
-                        {att.user_name?.charAt(0) || 'U'}
+                      <div className="h-8 w-8 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-medium text-xs">
+                        {att.user_name?.charAt(0)?.toUpperCase() || 'U'}
                       </div>
-                      <div className="ml-4">
+                      <div className="ml-3">
                         <div className="text-sm font-medium text-gray-900">
-                          {att.user_name}
+                          {att.user_name || '-'}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {att.employee_id}
+                        <div className="text-xs text-gray-500">
+                          {att.employee_id || '-'}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{att.department_name || '-'}</div>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{att.department || '-'}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center">
-                      <FiClock className="text-gray-400 mr-2" />
+                      <FiClock className="text-gray-400 mr-2" size={14} />
                       <span className="text-sm text-gray-900">{formatTime(att.check_in)}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center">
-                      <FiClock className="text-gray-400 mr-2" />
+                      <FiClock className="text-gray-400 mr-2" size={14} />
                       <span className="text-sm text-gray-900">
                         {att.check_out ? formatTime(att.check_out) : '-'}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       {calculateDuration(att.check_in, att.check_out)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="mr-2">
                         {getAttendanceIcon(att.status)}
@@ -808,49 +1049,19 @@ export default function AttendanceReport() {
                       {getStatusBadge(att.status)}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 truncate max-w-[150px]" title={att.location || '-'}>
-                      {att.location ? (
-                        <span className="flex items-center">
-                          <FiMapPin className="mr-1 text-gray-400" />
-                          {att.location}
-                        </span>
-                      ) : '-'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => {
-                          // Show attendance details
-                          toast.success(`Detail absensi ${att.user_name}`);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                        title="Lihat Detail"
-                      >
-                        <FiEye size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Edit attendance
-                          toast.info('Fitur edit akan segera tersedia');
-                        }}
-                        className="text-yellow-600 hover:text-yellow-800 transition-colors"
-                        title="Edit"
-                      >
-                        <FiEdit size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Hapus absensi ${att.user_name}?`)) {
-                            toast.success('Absensi berhasil dihapus');
-                          }
-                        }}
-                        className="text-red-600 hover:text-red-800 transition-colors"
-                        title="Hapus"
-                      >
-                        <FiTrash2 size={18} />
-                      </button>
+                  <td className="px-4 py-3">
+                    <div className="flex items-start">
+                      <FiMapPin className="text-gray-400 mr-2 mt-0.5 flex-shrink-0" size={14} />
+                      <div className="text-sm text-gray-900 break-words max-w-[200px]">
+                        {att.location ? (
+                          <span 
+                            className="cursor-help" 
+                            title={att.location.length > 50 ? att.location : ''}
+                          >
+                            {truncateLocation(att.location, 50)}
+                          </span>
+                        ) : '-'}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -885,20 +1096,67 @@ export default function AttendanceReport() {
       </div>
 
       {/* Pagination */}
-      {filteredAttendance.length > 0 && (
-        <div className="mt-6 flex items-center justify-between">
+      {filteredAttendance.length > 0 && totalPages > 1 && (
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-sm text-gray-700">
-            Menampilkan <span className="font-medium">{filteredAttendance.length}</span> dari{' '}
-            <span className="font-medium">{attendance.length}</span> data
+            Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredAttendance.length)} dari{' '}
+            <span className="font-medium">{filteredAttendance.length}</span> data
           </div>
-          <div className="flex space-x-2">
-            <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
               Sebelumnya
             </button>
-            <button className="px-3 py-1 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700">
-              1
-            </button>
-            <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+            
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNumber;
+                if (totalPages <= 5) {
+                  pageNumber = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNumber = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNumber = totalPages - 4 + i;
+                } else {
+                  pageNumber = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNumber}
+                    onClick={() => handlePageChange(pageNumber)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      currentPage === pageNumber
+                        ? 'bg-primary-600 text-white hover:bg-primary-700'
+                        : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                );
+              })}
+              
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <>
+                  <span className="px-2 text-gray-500">...</span>
+                  <button
+                    onClick={() => handlePageChange(totalPages)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+            </div>
+            
+            <button 
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
               Selanjutnya
             </button>
           </div>
@@ -914,7 +1172,7 @@ export default function AttendanceReport() {
                 <h3 className="text-xl font-semibold text-gray-900">Export Laporan</h3>
                 <button
                   onClick={() => setShowExportModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   ✕
                 </button>
@@ -929,33 +1187,36 @@ export default function AttendanceReport() {
                       className={`p-4 border-2 rounded-lg flex flex-col items-center transition-all ${
                         exportFormat === 'pdf' 
                           ? 'border-primary-600 bg-primary-50' 
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <FiFileText className="text-2xl mb-2 text-red-500" />
                       <span className="text-sm font-medium">PDF</span>
+                      <span className="text-xs text-gray-500 mt-1">(Laporan Lengkap)</span>
                     </button>
                     <button
                       onClick={() => setExportFormat('excel')}
                       className={`p-4 border-2 rounded-lg flex flex-col items-center transition-all ${
                         exportFormat === 'excel' 
                           ? 'border-primary-600 bg-primary-50' 
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <FiFileText className="text-2xl mb-2 text-green-500" />
                       <span className="text-sm font-medium">Excel</span>
+                      <span className="text-xs text-gray-500 mt-1">(Multi Sheet)</span>
                     </button>
                     <button
                       onClick={() => setExportFormat('csv')}
                       className={`p-4 border-2 rounded-lg flex flex-col items-center transition-all ${
                         exportFormat === 'csv' 
                           ? 'border-primary-600 bg-primary-50' 
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <FiFileText className="text-2xl mb-2 text-blue-500" />
                       <span className="text-sm font-medium">CSV</span>
+                      <span className="text-xs text-gray-500 mt-1">(Data Mentah)</span>
                     </button>
                   </div>
                 </div>
@@ -966,6 +1227,7 @@ export default function AttendanceReport() {
                     <li>• Periode: {format(new Date(dateRange.start), 'dd/MM/yyyy')} - {format(new Date(dateRange.end), 'dd/MM/yyyy')}</li>
                     <li>• Total Data: {filteredAttendance.length} record</li>
                     <li>• Format: {exportFormat.toUpperCase()}</li>
+                    <li>• Include: Data Absensi + Lokasi</li>
                   </ul>
                 </div>
               </div>
